@@ -1,0 +1,20 @@
+export const ROUTES = {
+  Splash: 'Splash',
+  Onboarding: 'Onboarding',
+  Auth: 'Auth',
+  Login: 'Login',
+  Register: 'Register',
+  Main: 'Main',
+  Home: 'Home',
+  History: 'History',
+  Profile: 'Profile',
+  TestSelection: 'TestSelection',
+  Instructions: 'Instructions',
+  Checklist: 'Checklist',
+  Camera: 'Camera',
+  Preview: 'Preview',
+  Processing: 'Processing',
+  Result: 'Result',
+  Performance: 'Performance',
+  Settings: 'Settings'
+} as const;
