@@ -1,0 +1,4 @@
+__pycache__/
+videos/
+temp_*
+*.mp4
