@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.database import engine
-from app.routers import athletes, auth, sync, tests
+from app.routers import athletes, auth, benchmarks, dashboard, sync, tests
 from app.utils.errors import register_exception_handlers
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -46,6 +46,8 @@ app.include_router(auth.router)
 app.include_router(athletes.router)
 app.include_router(tests.router)
 app.include_router(sync.router)
+app.include_router(benchmarks.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health", tags=["Health"])
