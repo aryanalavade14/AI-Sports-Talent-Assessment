@@ -1,605 +1,417 @@
-import React, { useEffect, useRef, useState } from 'react';
+
+import React, { useState } from 'react';
 import {
+  Alert,
+  ActivityIndicator,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Alert,
 } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography } from '../theme';
 
 export function CameraScreen({ navigation, route }: any) {
   const { testType } = route.params;
+  const [picking, setPicking] = useState(false);
 
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView>(null);
+  const isSitup = testType === 'situp';
 
-  const [cameraReady, setCameraReady] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(3);
-  const [recording, setRecording] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-
-  // ---------------------------------------------
-  // COUNTDOWN
-  // ---------------------------------------------
-
-  useEffect(() => {
-    if (!permission?.granted) {
-      return;
-    }
-
-    if (countdown === null) {
-      return;
-    }
-
-    if (countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown((previous) => {
-          if (previous === null) {
-            return null;
-          }
-
-          return previous - 1;
-        });
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    }
-
-    if (countdown === 0 && cameraReady && !recording) {
-      startRecording();
-    }
-  }, [countdown, permission?.granted, cameraReady, recording]);
-
-  // ---------------------------------------------
-  // RECORDING TIMER
-  // ---------------------------------------------
-
-  useEffect(() => {
-    if (!recording) {
-      return;
-    }
-
-    const timer = setInterval(() => {
-      setSeconds((previous) => previous + 1);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [recording]);
-
-  // ---------------------------------------------
-  // START RECORDING
-  // ---------------------------------------------
-
-  async function startRecording() {
-    if (!cameraRef.current) {
-      Alert.alert(
-        'Camera not ready',
-        'Please wait a moment and try again.'
-      );
-      return;
-    }
-
-    if (!cameraReady) {
-      Alert.alert(
-        'Camera not ready',
-        'Please wait for the camera to initialize.'
-      );
-      return;
-    }
-
-    if (recording) {
-      return;
-    }
-
+  async function chooseVideo() {
     try {
-      setRecording(true);
-      setSeconds(0);
+      setPicking(true);
 
-      const result = await cameraRef.current.recordAsync({
-        maxDuration: 60,
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: false,
+        quality: 1,
       });
 
-      setRecording(false);
-
-      if (result?.uri) {
-        navigation.replace('Preview', {
-          testType,
-          videoUri: result.uri,
-        });
-      } else {
-        Alert.alert(
-          'Recording problem',
-          'The video could not be saved. Please try again.'
-        );
+      if (result.canceled) {
+        return;
       }
-    } catch (error) {
-      console.log('Recording error:', error);
 
-      setRecording(false);
+      const video = result.assets?.[0];
+
+      if (!video?.uri) {
+        Alert.alert(
+          'Video not found',
+          'Please select a valid video and try again.'
+        );
+        return;
+      }
+
+      navigation.replace('Preview', {
+        testType,
+        videoUri: video.uri,
+      });
+    } catch (error) {
+      console.log('Video selection error:', error);
 
       Alert.alert(
-        'Recording failed',
-        'The camera could not start recording. Please try again.'
+        'Unable to select video',
+        'Please try choosing a video from your gallery again.'
       );
+    } finally {
+      setPicking(false);
     }
   }
-
-  // ---------------------------------------------
-  // STOP RECORDING
-  // ---------------------------------------------
-
-  function stopRecording() {
-    if (!recording) {
-      return;
-    }
-
-    cameraRef.current?.stopRecording();
-  }
-
-  // ---------------------------------------------
-  // PERMISSION CHECK
-  // ---------------------------------------------
-
-  if (!permission) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.text}>
-          Checking camera permission...
-        </Text>
-      </View>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <View style={styles.center}>
-        <View style={styles.permissionIcon}>
-          <Ionicons
-            name="camera-outline"
-            size={38}
-            color={colors.primaryBright}
-          />
-        </View>
-
-        <Text style={styles.title}>
-          Camera access needed
-        </Text>
-
-        <Text style={styles.text}>
-          Your camera is used only to record the assessment video.
-        </Text>
-
-        <TouchableOpacity
-          style={styles.permissionButton}
-          onPress={requestPermission}
-        >
-          <Text style={styles.buttonText}>
-            Allow camera
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.cancel}>
-            Go back
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const minutes = String(Math.floor(seconds / 60)).padStart(2, '0');
-  const remainingSeconds = String(seconds % 60).padStart(2, '0');
 
   return (
-    <View style={styles.screen}>
-
-      {/* CAMERA */}
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        facing="back"
-        mode="video"
-        mute={true}
-        onCameraReady={() => {
-          console.log('Camera is ready');
-          setCameraReady(true);
-        }}
-      />
-
-      {/* DARK OVERLAY */}
-      <View style={styles.overlay}>
-
-        {/* TOP BAR */}
-        <View style={styles.top}>
-
+    <SafeAreaView
+      style={styles.screen}
+      edges={['top', 'left', 'right']}
+    >
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
           <TouchableOpacity
-            style={styles.close}
-            disabled={recording}
+            style={styles.backButton}
             onPress={() => navigation.goBack()}
+            accessibilityLabel="Go back"
+            activeOpacity={0.7}
           >
             <Ionicons
-              name="close"
-              size={24}
-              color={colors.white}
+              name="arrow-back"
+              size={23}
+              color={colors.text}
             />
           </TouchableOpacity>
 
-          <View style={styles.testPill}>
-            <Text style={styles.testText}>
-              {testType === 'situp'
-                ? 'SIT-UPS'
-                : 'VERTICAL JUMP'}
-            </Text>
+          <Text style={styles.headerTitle}>Upload Video</Text>
+
+          <View style={styles.headerSpacer} />
+        </View>
+
+        {/* Test type */}
+        <View style={styles.testPill}>
+          <Ionicons
+            name={isSitup ? 'fitness-outline' : 'flash-outline'}
+            size={17}
+            color={colors.primaryBright}
+          />
+
+          <Text style={styles.testText}>
+            {isSitup
+              ? 'SIT-UPS ASSESSMENT'
+              : 'VERTICAL JUMP ASSESSMENT'}
+          </Text>
+        </View>
+
+        {/* Main upload section */}
+        <View style={styles.hero}>
+          <View style={styles.iconCircle}>
+            <Ionicons
+              name="cloud-upload-outline"
+              size={58}
+              color={colors.primaryBright}
+            />
           </View>
 
-          <View style={styles.closeGhost} />
-        </View>
-
-        {/* CAMERA FRAME */}
-        <View style={styles.guide}>
-
-          <View style={styles.cornerTL} />
-          <View style={styles.cornerTR} />
-          <View style={styles.cornerBL} />
-          <View style={styles.cornerBR} />
-
-          {/* CAMERA NOT READY */}
-          {!cameraReady && (
-            <View style={styles.centerMessage}>
-              <Text style={styles.readyText}>
-                Preparing camera...
-              </Text>
-            </View>
-          )}
-
-          {/* COUNTDOWN */}
-          {cameraReady &&
-            countdown !== null &&
-            countdown > 0 &&
-            !recording && (
-              <View style={styles.count}>
-                <Text style={styles.countText}>
-                  {countdown}
-                </Text>
-
-                <Text style={styles.countLabel}>
-                  GET READY
-                </Text>
-              </View>
-            )}
-
-          {/* GO */}
-          {cameraReady &&
-            countdown === 0 &&
-            !recording && (
-              <View style={styles.count}>
-                <Text style={styles.goText}>
-                  GO!
-                </Text>
-              </View>
-            )}
-
-          {/* RECORDING STATUS */}
-          {recording && (
-            <View style={styles.recordingStatus}>
-              <View style={styles.redDot} />
-
-              <Text style={styles.recordingText}>
-                RECORDING
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* BOTTOM */}
-        <View style={styles.bottom}>
-
-          <Text style={styles.instruction}>
-            {recording
-              ? 'Keep moving with controlled form.'
-              : 'Position your full body inside the frame.'}
+          <Text style={styles.title}>
+            Choose Your Video
           </Text>
 
-          {/* RECORDING BUTTON */}
-          {recording ? (
-            <TouchableOpacity
-              style={styles.recordingButton}
-              onPress={stopRecording}
-            >
-              <View style={styles.stopSquare} />
+          <Text style={styles.subtitle}>
+            Upload a video of your{' '}
+            {isSitup ? 'sit-up exercise' : 'vertical jump'} from
+            your phone gallery to begin your assessment.
+          </Text>
 
-              <Text style={styles.timer}>
-                {minutes}:{remainingSeconds}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.recordButton}>
-              <View style={styles.innerRecord} />
+          {/* Upload card */}
+          <View style={styles.uploadCard}>
+            <View style={styles.videoIconCircle}>
+              <Ionicons
+                name="videocam-outline"
+                size={30}
+                color={colors.cyan}
+              />
             </View>
-          )}
 
+            <Text style={styles.cardTitle}>
+              Select a video from your gallery
+            </Text>
+
+            <Text style={styles.cardDescription}>
+              Choose a clear video where your full body and
+              movements are visible.
+            </Text>
+
+            {/* Video tips */}
+            <View style={styles.tipRow}>
+              <Ionicons
+                name="checkmark-circle"
+                size={19}
+                color={colors.cyan}
+              />
+              <Text style={styles.tipText}>
+                Keep your full body in the frame
+              </Text>
+            </View>
+
+            <View style={styles.tipRow}>
+              <Ionicons
+                name="checkmark-circle"
+                size={19}
+                color={colors.cyan}
+              />
+              <Text style={styles.tipText}>
+                Use a well-lit recording
+              </Text>
+            </View>
+
+            <View style={styles.tipRow}>
+              <Ionicons
+                name="checkmark-circle"
+                size={19}
+                color={colors.cyan}
+              />
+              <Text style={styles.tipText}>
+                Avoid shaky or obstructed videos
+              </Text>
+            </View>
+
+            {/* Gallery button */}
+            <TouchableOpacity
+              style={[
+                styles.uploadButton,
+                picking && styles.disabledButton,
+              ]}
+              onPress={chooseVideo}
+              disabled={picking}
+              activeOpacity={0.8}
+            >
+              {picking ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons
+                    name="images-outline"
+                    size={22}
+                    color="#FFFFFF"
+                  />
+
+                  <Text style={styles.uploadButtonText}>
+                    Choose from Gallery
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <Text style={styles.privacyText}>
+              Select a video stored on your device.
+            </Text>
+          </View>
         </View>
-      </View>
-    </View>
+
+        {/* Bottom note */}
+        <View style={styles.footer}>
+          <Ionicons
+            name="information-circle-outline"
+            size={20}
+            color={colors.textSecondary}
+          />
+
+          <Text style={styles.footerText}>
+            You can review your selected video before continuing.
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-
-// ---------------------------------------------
-// STYLES
-// ---------------------------------------------
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.black,
-  },
-
-  center: {
-    flex: 1,
     backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 28,
   },
 
-  permissionIcon: {
-    width: 76,
-    height: 76,
-    borderRadius: 26,
-    backgroundColor: 'rgba(59,130,246,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: 22,
+    paddingTop: 14,
+    paddingBottom: 28,
   },
 
-  title: {
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 28,
+  },
+
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  headerTitle: {
     ...typography.h1,
     color: colors.text,
-    textAlign: 'center',
+    fontSize: 20,
   },
 
-  text: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 10,
-  },
-
-  permissionButton: {
-    marginTop: 24,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 26,
-    paddingVertical: 15,
-    borderRadius: 16,
-  },
-
-  buttonText: {
-    ...typography.bodyMedium,
-    color: colors.white,
-  },
-
-  cancel: {
-    ...typography.bodyMedium,
-    color: colors.primaryBright,
-    marginTop: 18,
-  },
-
-  overlay: {
-    flex: 1,
-    justifyContent: 'space-between',
-    padding: 22,
-    paddingTop: 56,
-    paddingBottom: 34,
-  },
-
-  top: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-
-  close: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.38)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  closeGhost: {
-    width: 42,
+  headerSpacer: {
+    width: 44,
   },
 
   testPill: {
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    borderRadius: 999,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 30,
+    marginBottom: 25,
   },
 
   testText: {
     ...typography.caption,
-    color: colors.white,
-    letterSpacing: 1,
-  },
-
-  guide: {
-    flex: 1,
-    marginVertical: 70,
-    position: 'relative',
-    borderColor: 'rgba(255,255,255,0.28)',
-    borderWidth: 1,
-    borderRadius: 28,
-  },
-
-  cornerTL: {
-    position: 'absolute',
-    left: -1,
-    top: -1,
-    width: 38,
-    height: 38,
-    borderLeftWidth: 3,
-    borderTopWidth: 3,
-    borderColor: colors.cyan,
-    borderTopLeftRadius: 26,
-  },
-
-  cornerTR: {
-    position: 'absolute',
-    right: -1,
-    top: -1,
-    width: 38,
-    height: 38,
-    borderRightWidth: 3,
-    borderTopWidth: 3,
-    borderColor: colors.cyan,
-    borderTopRightRadius: 26,
-  },
-
-  cornerBL: {
-    position: 'absolute',
-    left: -1,
-    bottom: -1,
-    width: 38,
-    height: 38,
-    borderLeftWidth: 3,
-    borderBottomWidth: 3,
-    borderColor: colors.cyan,
-    borderBottomLeftRadius: 26,
-  },
-
-  cornerBR: {
-    position: 'absolute',
-    right: -1,
-    bottom: -1,
-    width: 38,
-    height: 38,
-    borderRightWidth: 3,
-    borderBottomWidth: 3,
-    borderColor: colors.cyan,
-    borderBottomRightRadius: 26,
-  },
-
-  count: {
-    position: 'absolute',
-    alignSelf: 'center',
-    top: '40%',
-    alignItems: 'center',
-  },
-
-  countText: {
-    fontSize: 84,
-    fontWeight: '900',
-    color: colors.white,
-  },
-
-  goText: {
-    fontSize: 70,
-    fontWeight: '900',
-    color: colors.white,
-  },
-
-  countLabel: {
-    ...typography.caption,
-    color: colors.white,
-    letterSpacing: 2,
-  },
-
-  centerMessage: {
-    position: 'absolute',
-    top: '45%',
-    alignSelf: 'center',
-  },
-
-  readyText: {
-    color: colors.white,
-    fontSize: 18,
-    fontWeight: '700',
-  },
-
-  recordingStatus: {
-    position: 'absolute',
-    top: 20,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 20,
-  },
-
-  redDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: colors.danger,
-    marginRight: 8,
-  },
-
-  recordingText: {
-    color: colors.white,
+    color: colors.primaryBright,
     fontWeight: '800',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
   },
 
-  bottom: {
+  hero: {
     alignItems: 'center',
   },
 
-  instruction: {
-    ...typography.bodyMedium,
-    color: colors.white,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 12,
+  iconCircle: {
+    width: 112,
+    height: 112,
+    borderRadius: 36,
+    backgroundColor: 'rgba(59,130,246,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 22,
+  },
+
+  title: {
+    ...typography.h1,
+    color: '#F8FAFC',
+    textAlign: 'center',
+    fontSize: 27,
+    marginBottom: 12,
+  },
+
+  subtitle: {
+    ...typography.body,
+    color: '#B8C5D9',
+    textAlign: 'center',
+    lineHeight: 23,
+    paddingHorizontal: 8,
+    marginBottom: 28,
+  },
+
+  uploadCard: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 26,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 22,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+
+  videoIconCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 21,
+    backgroundColor: '#E0F7FA',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 18,
   },
 
-  recordButton: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
-    borderWidth: 5,
-    borderColor: colors.white,
+  cardTitle: {
+    ...typography.bodyMedium,
+    color: '#172033',
+    fontSize: 17,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+
+  cardDescription: {
+    ...typography.body,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 22,
+  },
+
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginBottom: 14,
+    gap: 10,
+  },
+
+  tipText: {
+    ...typography.body,
+    color: '#334155',
+    flex: 1,
+    lineHeight: 21,
+  },
+
+  uploadButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: '#347FF0',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    marginTop: 14,
+    gap: 10,
   },
 
-  innerRecord: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.danger,
+  disabledButton: {
+    opacity: 0.65,
   },
 
-  recordingButton: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    borderWidth: 4,
-    borderColor: colors.white,
+  uploadButtonText: {
+    ...typography.bodyMedium,
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
+
+  privacyText: {
+    ...typography.caption,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 15,
+  },
+
+  footer: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(239,68,68,0.8)',
+    gap: 8,
+    marginTop: 24,
+    paddingHorizontal: 8,
   },
 
-  stopSquare: {
-    width: 25,
-    height: 25,
-    borderRadius: 5,
-    backgroundColor: colors.white,
-  },
-
-  timer: {
-    position: 'absolute',
-    top: -30,
-    color: colors.white,
-    fontWeight: '800',
+  footerText: {
+    ...typography.caption,
+    color: '#B8C5D9',
+    flex: 1,
+    lineHeight: 19,
   },
 });
