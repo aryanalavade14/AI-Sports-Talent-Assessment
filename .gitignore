@@ -6,3 +6,9 @@ web-build/
 .env
 .env.local
 .DS_Store
+# Python backend
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
